@@ -11,7 +11,7 @@
 
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div id="app-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <div id="app-container" class="bg-white p-6 rounded-lg shadow-lg w-full">
         <h1 class="text-2xl font-bold mb-4 text-center">Registrar Aplicação</h1>
         <form id="medication-form">
             <select id="location" class="w-full p-2 mb-4 border rounded">
@@ -43,7 +43,8 @@
             projectId: "controle-medicacao-66d92",
             storageBucket: "controle-medicacao-66d92.firebasestorage.app",
             messagingSenderId: "330123262223",
-            appId: "1:330123262223:web:ba75ed2cf31c1c9b81267a"
+            appId: "1:330123262223:web:ba75ed2cf31c1c9b81267a",
+            measurementId: "G-KH01YSCT7V"
         };
 
         // Inicializar Firebase
@@ -69,7 +70,7 @@
         // Verificar estado de autenticação
         auth.onAuthStateChanged(user => {
             if (user) {
-                appContainer.classList.remove('hidden');
+                appContainer.classList.remove('hidden'); // Certifica que o container da aplicação está visível
                 loadRecords(user.uid);
                 setDefaultDateTime();
                 suggestNextLocation(user.uid);
@@ -112,7 +113,7 @@
             if (location && date && time) {
                 const user = auth.currentUser;
                 if (user) {
-                    // Verificar se já existe registro no mesmo dia
+                    // Verificar se já existe registro no mesmo dia (Melhoria 2)
                     database.ref('records/' + user.uid).orderByChild('date').equalTo(date).once('value', snapshot => {
                         if (snapshot.exists()) {
                             alert('A medição só deve ser aplicada uma vez ao dia.');
@@ -124,8 +125,8 @@
                                 timestamp: firebase.database.ServerValue.TIMESTAMP
                             }).then(() => {
                                 medicationForm.reset();
-                                setDefaultDateTime(); // Redefinir data/hora após registro
-                                suggestNextLocation(user.uid); // Atualizar sugestão
+                                setDefaultDateTime(); // Redefinir data/hora após registro (Melhoria 3)
+                                suggestNextLocation(user.uid); // Atualizar sugestão (Melhoria 4)
                                 alert('Aplicação registrada com sucesso!');
                             }).catch(error => {
                                 alert('Erro ao registrar: ' + error.message);
@@ -138,15 +139,33 @@
             }
         });
 
-        // Carregar registros
+        // Carregar registros e adicionar funcionalidade de exclusão (Melhoria: Deletar Registro)
         function loadRecords(uid) {
             database.ref('records/' + uid).on('value', (snapshot) => {
                 recordsList.innerHTML = '';
                 snapshot.forEach(childSnapshot => {
                     const record = childSnapshot.val();
+                    const recordKey = childSnapshot.key; // Obter a chave do registro
+
                     const li = document.createElement('li');
-                    li.className = 'p-2 bg-gray-200 rounded';
+                    li.className = 'p-2 bg-gray-200 rounded flex justify-between items-center';
                     li.textContent = `${record.date} ${record.time} - ${record.location}`;
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Excluir';
+                    deleteButton.className = 'ml-4 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600';
+                    deleteButton.onclick = () => {
+                        if (confirm('Tem certeza que deseja excluir este registro?')) {
+                            database.ref('records/' + uid + '/' + recordKey).remove()
+                                .then(() => {
+                                    alert('Registro excluído com sucesso!');
+                                })
+                                .catch(error => {
+                                    alert('Erro ao excluir registro: ' + error.message);
+                                });
+                        }
+                    };
+                    li.appendChild(deleteButton);
                     recordsList.appendChild(li);
                 });
             });
