@@ -1,29 +1,16 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Aplicações de Medicação</title>
-    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
-
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js"></script>
 </head>
-
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div id="auth-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-        <h1 class="text-2xl font-bold mb-4 text-center">Controle de Medicação</h1>
-        <div id="login-form">
-            <input id="email" type="email" placeholder="Email" class="w-full p-2 mb-4 border rounded">
-            <input id="password" type="password" placeholder="Senha" class="w-full p-2 mb-4 border rounded">
-            <button id="login-btn" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Entrar</button>
-            <button id="signup-btn"
-                class="w-full bg-green-500 text-white p-2 rounded mt-2 hover:bg-green-600">Cadastrar</button>
-        </div>
-    </div>
-
-    <div id="app-container" class="hidden bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <div id="app-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
         <h1 class="text-2xl font-bold mb-4 text-center">Registrar Aplicação</h1>
         <form id="medication-form">
             <select id="location" class="w-full p-2 mb-4 border rounded">
@@ -55,8 +42,7 @@
             projectId: "controle-medicacao-66d92",
             storageBucket: "controle-medicacao-66d92.firebasestorage.app",
             messagingSenderId: "330123262223",
-            appId: "1:330123262223:web:ba75ed2cf31c1c9b81267a",
-            measurementId: "G-KH01YSCT7V"
+            appId: "1:330123262223:web:ba75ed2cf31c1c9b81267a"
         };
 
         // Inicializar Firebase
@@ -65,78 +51,85 @@
         const database = firebase.database();
 
         // Elementos do DOM
-        const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
-        const loginForm = document.getElementById('login-form');
         const medicationForm = document.getElementById('medication-form');
         const recordsList = document.getElementById('records-list');
-        const loginBtn = document.getElementById('login-btn');
-        const signupBtn = document.getElementById('signup-btn');
         const logoutBtn = document.getElementById('logout-btn');
+        const locationSelect = document.getElementById('location');
+        const dateInput = document.getElementById('date');
+        const timeInput = document.getElementById('time');
+
+        // Lista de locais para sugestão
+        const locations = [
+            'Braço Esquerdo', 'Braço Direito', 'Coxa Esquerda', 'Coxa Direita',
+            'Abdômen Esquerdo', 'Abdômen Direito', 'Glúteo Esquerdo', 'Glúteo Direito'
+        ];
 
         // Verificar estado de autenticação
         auth.onAuthStateChanged(user => {
             if (user) {
-                authContainer.classList.add('hidden');
                 appContainer.classList.remove('hidden');
                 loadRecords(user.uid);
+                setDefaultDateTime();
+                suggestNextLocation(user.uid);
             } else {
-                authContainer.classList.remove('hidden');
-                appContainer.classList.add('hidden');
+                window.location.href = 'login.html'; // Redireciona para login se não autenticado
             }
         });
 
-        // Login
-        loginBtn.addEventListener('click', () => {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            auth.signInWithEmailAndPassword(email, password)
-                .then(() => {
-                    alert('Login bem-sucedido!');
-                })
-                .catch(error => {
-                    alert('Erro ao entrar: ' + error.message);
-                });
-        });
+        // Definir data e hora atuais como padrão
+        function setDefaultDateTime() {
+            const now = new Date();
+            dateInput.value = now.toISOString().split('T')[0]; // Data atual (YYYY-MM-DD)
+            timeInput.value = now.toTimeString().slice(0, 5); // Hora atual (HH:MM)
+        }
 
-        // Cadastro
-        signupBtn.addEventListener('click', () => {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            auth.createUserWithEmailAndPassword(email, password)
-                .then(() => {
-                    alert('Cadastro bem-sucedido! Faça login para continuar.');
-                })
-                .catch(error => {
-                    alert('Erro ao cadastrar: ' + error.message);
+        // Sugerir próximo local de aplicação
+        function suggestNextLocation(uid) {
+            database.ref('records/' + uid).orderByChild('timestamp').limitToLast(1).once('value', snapshot => {
+                let lastLocation = null;
+                snapshot.forEach(childSnapshot => {
+                    lastLocation = childSnapshot.val().location;
                 });
-        });
-
-        // Logout
-        logoutBtn.addEventListener('click', () => {
-            auth.signOut();
-        });
+                if (lastLocation) {
+                    const lastIndex = locations.indexOf(lastLocation);
+                    const nextIndex = (lastIndex + 1) % locations.length; // Próximo local, ciclando
+                    locationSelect.value = locations[nextIndex];
+                } else {
+                    locationSelect.value = locations[0]; // Primeiro local se não houver registros
+                }
+            });
+        }
 
         // Registrar aplicação
         medicationForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const location = document.getElementById('location').value;
-            const date = document.getElementById('date').value;
-            const time = document.getElementById('time').value;
+            const location = locationSelect.value;
+            const date = dateInput.value;
+            const time = timeInput.value;
 
             if (location && date && time) {
                 const user = auth.currentUser;
                 if (user) {
-                    database.ref('records/' + user.uid).push({
-                        location: location,
-                        date: date,
-                        time: time,
-                        timestamp: firebase.database.ServerValue.TIMESTAMP
-                    }).then(() => {
-                        medicationForm.reset();
-                        alert('Aplicação registrada com sucesso!');
-                    }).catch(error => {
-                        alert('Erro ao registrar: ' + error.message);
+                    // Verificar se já existe registro no mesmo dia
+                    database.ref('records/' + user.uid).orderByChild('date').equalTo(date).once('value', snapshot => {
+                        if (snapshot.exists()) {
+                            alert('A medição só deve ser aplicada uma vez ao dia.');
+                        } else {
+                            database.ref('records/' + user.uid).push({
+                                location: location,
+                                date: date,
+                                time: time,
+                                timestamp: firebase.database.ServerValue.TIMESTAMP
+                            }).then(() => {
+                                medicationForm.reset();
+                                setDefaultDateTime(); // Redefinir data/hora após registro
+                                suggestNextLocation(user.uid); // Atualizar sugestão
+                                alert('Aplicação registrada com sucesso!');
+                            }).catch(error => {
+                                alert('Erro ao registrar: ' + error.message);
+                            });
+                        }
                     });
                 }
             } else {
@@ -157,7 +150,11 @@
                 });
             });
         }
+
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            auth.signOut();
+        });
     </script>
 </body>
-
 </html>
