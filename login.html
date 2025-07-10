@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
-
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <div id="auth-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
@@ -17,8 +16,7 @@
             <input id="password" type="password" placeholder="Senha" class="w-full p-2 mb-4 border rounded">
             <button id="login-btn" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Entrar</button>
             <button id="signup-btn" class="w-full bg-green-500 text-white p-2 rounded mt-2 hover:bg-green-600">Cadastrar</button>
-            <!-- Novo botão para redefinição de senha -->
-            <button id="reset-password-btn" class="w-full bg-gray-400 text-white p-2 rounded mt-2 hover:bg-gray-500">Esqueceu a senha?</button>
+            <button id="reset-password-btn" class="w-full bg-gray-500 text-white p-2 rounded mt-2 hover:bg-gray-600">Esqueceu a senha?</button>
         </div>
     </div>
 
@@ -41,7 +39,7 @@
         // Elementos do DOM
         const loginBtn = document.getElementById('login-btn');
         const signupBtn = document.getElementById('signup-btn');
-        const resetPasswordBtn = document.getElementById('reset-password-btn'); // Novo elemento
+        const resetPasswordBtn = document.getElementById('reset-password-btn');
 
         // Verificar estado de autenticação
         auth.onAuthStateChanged(user => {
@@ -79,26 +77,26 @@
             auth.createUserWithEmailAndPassword(email, password)
                 .then(() => {
                     alert('Cadastro bem-sucedido! Faça login para continuar.');
-                    // document.getElementById('login-form').reset(); // Não é necessário resetar o formulário aqui
+                    document.getElementById('login-form').reset();
                 })
                 .catch(error => {
                     alert('Erro ao cadastrar: ' + error.message);
                 });
         });
 
-        // Redefinição de Senha (Novo)
+        // Redefinir senha
         resetPasswordBtn.addEventListener('click', () => {
             const email = document.getElementById('email').value;
             if (!email) {
-                alert('Por favor, digite seu email para redefinir a senha.');
+                alert('Digite seu email para redefinir a senha.');
                 return;
             }
             auth.sendPasswordResetEmail(email)
                 .then(() => {
-                    alert('Um e-mail de redefinição de senha foi enviado para ' + email + '. Por favor, verifique sua caixa de entrada.');
+                    alert('Email de redefinição de senha enviado! Verifique sua caixa de entrada.');
                 })
                 .catch(error => {
-                    alert('Erro ao enviar e-mail de redefinição: ' + error.message);
+                    alert('Erro ao enviar email de redefinição: ' + error.message);
                 });
         });
     </script>

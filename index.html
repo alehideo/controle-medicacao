@@ -8,13 +8,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
-
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div id="app-container" class="bg-white p-6 rounded-lg shadow-lg w-full">
-        <h1 class="text-2xl font-bold mb-4 text-center">Registrar Aplicação</h1>
-        <!-- Novo elemento para exibir o usuário logado -->
-        <div id="user-display" class="text-center text-gray-600 mb-4"></div>
+    <div id="app-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-2 text-center">Registrar Aplicação</h1>
+        <p id="user-info" class="text-sm text-gray-600 mb-4"></p>
         <form id="medication-form">
             <select id="location" class="w-full p-2 mb-4 border rounded">
                 <option value="">Selecione o local</option>
@@ -29,7 +27,8 @@
             </select>
             <input id="date" type="date" class="w-full p-2 mb-4 border rounded">
             <input id="time" type="time" class="w-full p-2 mb-4 border rounded">
-            <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Registrar</button>
+            <button type="submit" id="submit-btn" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Registrar</button>
+            <button type="button" id="cancel-btn" class="w-full bg-gray-500 text-white p-2 rounded mt-2 hover:bg-gray-600 hidden">Cancelar</button>
         </form>
         <h2 class="text-xl font-bold mt-6 mb-4">Registros</h2>
         <ul id="records-list" class="space-y-2"></ul>
@@ -45,8 +44,7 @@
             projectId: "controle-medicacao-66d92",
             storageBucket: "controle-medicacao-66d92.firebasestorage.app",
             messagingSenderId: "330123262223",
-            appId: "1:330123262223:web:ba75ed2cf31c1c9b81267a",
-            measurementId: "G-KH01YSCT7V"
+            appId: "1:330123262223:web:ba75ed2cf31c1c9b81267a"
         };
 
         // Inicializar Firebase
@@ -62,7 +60,9 @@
         const locationSelect = document.getElementById('location');
         const dateInput = document.getElementById('date');
         const timeInput = document.getElementById('time');
-        const userDisplay = document.getElementById('user-display'); // Novo elemento
+        const submitBtn = document.getElementById('submit-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const userInfo = document.getElementById('user-info');
 
         // Lista de locais para sugestão
         const locations = [
@@ -70,11 +70,14 @@
             'Abdômen Esquerdo', 'Abdômen Direito', 'Glúteo Esquerdo', 'Glúteo Direito'
         ];
 
+        // Estado para edição
+        let editingRecordId = null;
+
         // Verificar estado de autenticação
         auth.onAuthStateChanged(user => {
             if (user) {
-                appContainer.classList.remove('hidden'); // Certifica que o container da aplicação está visível
-                userDisplay.textContent = `Logado como: ${user.email}`; // Exibe o e-mail do usuário
+                appContainer.classList.remove('hidden');
+                userInfo.textContent = `Logado como: ${user.email}`;
                 loadRecords(user.uid);
                 setDefaultDateTime();
                 suggestNextLocation(user.uid);
@@ -107,7 +110,7 @@
             });
         }
 
-        // Registrar aplicação
+        // Registrar ou editar aplicação
         medicationForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const location = locationSelect.value;
@@ -117,24 +120,44 @@
             if (location && date && time) {
                 const user = auth.currentUser;
                 if (user) {
-                    // Verificar se já existe registro no mesmo dia (Melhoria 2)
+                    // Verificar se já existe registro no mesmo dia (exceto para o registro sendo editado)
                     database.ref('records/' + user.uid).orderByChild('date').equalTo(date).once('value', snapshot => {
-                        if (snapshot.exists()) {
+                        let hasOtherRecord = false;
+                        snapshot.forEach(childSnapshot => {
+                            if (childSnapshot.key !== editingRecordId) {
+                                hasOtherRecord = true;
+                            }
+                        });
+                        if (hasOtherRecord) {
                             alert('A medição só deve ser aplicada uma vez ao dia.');
                         } else {
-                            database.ref('records/' + user.uid).push({
+                            const recordData = {
                                 location: location,
                                 date: date,
                                 time: time,
                                 timestamp: firebase.database.ServerValue.TIMESTAMP
-                            }).then(() => {
-                                medicationForm.reset();
-                                setDefaultDateTime(); // Redefinir data/hora após registro (Melhoria 3)
-                                suggestNextLocation(user.uid); // Atualizar sugestão (Melhoria 4)
-                                alert('Aplicação registrada com sucesso!');
-                            }).catch(error => {
-                                alert('Erro ao registrar: ' + error.message);
-                            });
+                            };
+                            if (editingRecordId) {
+                                // Editar registro existente
+                                database.ref('records/' + user.uid + '/' + editingRecordId).update(recordData)
+                                    .then(() => {
+                                        resetForm();
+                                        alert('Registro atualizado com sucesso!');
+                                    })
+                                    .catch(error => {
+                                        alert('Erro ao atualizar: ' + error.message);
+                                    });
+                            } else {
+                                // Criar novo registro
+                                database.ref('records/' + user.uid).push(recordData)
+                                    .then(() => {
+                                        resetForm();
+                                        alert('Aplicação registrada com sucesso!');
+                                    })
+                                    .catch(error => {
+                                        alert('Erro ao registrar: ' + error.message);
+                                    });
+                            }
                         }
                     });
                 }
@@ -143,34 +166,77 @@
             }
         });
 
-        // Carregar registros e adicionar funcionalidade de exclusão (Melhoria: Deletar Registro)
+        // Cancelar edição
+        cancelBtn.addEventListener('click', () => {
+            resetForm();
+        });
+
+        // Redefinir formulário
+        function resetForm() {
+            medicationForm.reset();
+            setDefaultDateTime();
+            suggestNextLocation(auth.currentUser.uid);
+            editingRecordId = null;
+            submitBtn.textContent = 'Registrar';
+            cancelBtn.classList.add('hidden');
+        }
+
+        // Carregar registros (ordenados por data e hora do registro)
         function loadRecords(uid) {
             database.ref('records/' + uid).on('value', (snapshot) => {
                 recordsList.innerHTML = '';
+                const records = [];
                 snapshot.forEach(childSnapshot => {
-                    const record = childSnapshot.val();
-                    const recordKey = childSnapshot.key; // Obter a chave do registro
-
+                    records.push({ key: childSnapshot.key, ...childSnapshot.val() });
+                });
+                // Ordenar por data e hora do registro (descendente)
+                records.sort((a, b) => {
+                    const dateTimeA = new Date(`${a.date}T${a.time}`);
+                    const dateTimeB = new Date(`${b.date}T${b.time}`);
+                    return dateTimeB - dateTimeA; // Mais recente primeiro
+                });
+                records.forEach(record => {
                     const li = document.createElement('li');
                     li.className = 'p-2 bg-gray-200 rounded flex justify-between items-center';
-                    li.textContent = `${record.date} ${record.time} - ${record.location}`;
+                    li.innerHTML = `
+                        <span class="flex-1 min-w-0">${record.date} ${record.time} - ${record.location}</span>
+                        <div class="flex space-x-2">
+                            <button class="edit-btn bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600" data-key="${record.key}">Editar</button>
+                            <button class="delete-btn bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600" data-key="${record.key}">Deletar</button>
+                        </div>
+                    `;
+                    recordsList.appendChild(li);
+                });
 
-                    const deleteButton = document.createElement('button');
-                    deleteButton.textContent = 'Excluir';
-                    deleteButton.className = 'ml-4 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600';
-                    deleteButton.onclick = () => {
-                        if (confirm('Tem certeza que deseja excluir este registro?')) {
-                            database.ref('records/' + uid + '/' + recordKey).remove()
+                // Adicionar eventos para botões de editar e deletar
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const key = btn.getAttribute('data-key');
+                        database.ref('records/' + uid + '/' + key).once('value', snapshot => {
+                            const record = snapshot.val();
+                            locationSelect.value = record.location;
+                            dateInput.value = record.date;
+                            timeInput.value = record.time;
+                            editingRecordId = key;
+                            submitBtn.textContent = 'Salvar';
+                            cancelBtn.classList.remove('hidden');
+                        });
+                    });
+                });
+
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const key = btn.getAttribute('data-key');
+                        if (confirm('Tem certeza que deseja deletar este registro?')) {
+                            database.ref('records/' + uid + '/' + key).remove()
                                 .then(() => {
-                                    alert('Registro excluído com sucesso!');
+                                    alert('Registro deletado com sucesso!');
                                 })
                                 .catch(error => {
-                                    alert('Erro ao excluir registro: ' + error.message);
+                                    alert('Erro ao deletar: ' + error.message);
                                 });
                         }
-                    };
-                    li.appendChild(deleteButton);
-                    recordsList.appendChild(li);
+                    });
                 });
             });
         }
