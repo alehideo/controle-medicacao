@@ -89,8 +89,16 @@
         // Definir data e hora atuais como padrão
         function setDefaultDateTime() {
             const now = new Date();
-            dateInput.value = now.toISOString().split('T')[0]; // Data atual (YYYY-MM-DD)
-            timeInput.value = now.toTimeString().slice(0, 5); // Hora atual (HH:MM)
+
+            const y  = now.getFullYear();
+            const m  = String(now.getMonth() + 1).padStart(2, '0');
+            const d  = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+
+            // AAAA-MM-DD e HH:mm no horário local do dispositivo
+            dateInput.value = `${y}-${m}-${d}`;
+            timeInput.value = `${hh}:${mm}`;
         }
 
         // Sugerir próximo local de aplicação
@@ -190,19 +198,28 @@
                     records.push({ key: childSnapshot.key, ...childSnapshot.val() });
                 });
                 // Ordenar por data e hora do registro (descendente)
+                function toLocalTimestamp(dateStr, timeStr) {
+                // dateStr: "YYYY-MM-DD", timeStr: "HH:mm"
+                const [y, m, d]   = dateStr.split('-').map(Number);
+                const [hh, mm]    = timeStr.split(':').map(Number);
+                // Constrói um Date no horário local
+                return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+                }
+
+                // Ordenar por data e hora do registro (descendente, mais recente primeiro)
                 records.sort((a, b) => {
-                    const dateTimeA = new Date(`${a.date}T${a.time}`);
-                    const dateTimeB = new Date(`${b.date}T${b.time}`);
-                    return dateTimeB - dateTimeA; // Mais recente primeiro
+                    const tsA = toLocalTimestamp(a.date, a.time);
+                    const tsB = toLocalTimestamp(b.date, b.time);
+                    return tsB - tsA;
                 });
                 records.forEach(record => {
                     const li = document.createElement('li');
                     li.className = 'p-2 bg-gray-200 rounded flex justify-between items-center';
                     li.innerHTML = `
-                        <span class="flex-1 min-w-0">${record.date} ${record.time} - ${record.location}</span>
-                        <div class="flex space-x-2">
-                            <button class="edit-btn bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600" data-key="${record.key}">Editar</button>
-                            <button class="delete-btn bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600" data-key="${record.key}">Deletar</button>
+                    <span class="flex-1 min-w-0">${record.date} ${record.time} - ${record.location}</span>
+                     <div class="flex space-x-2">
+                        <button class="edit-btn bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600" data-key="${record.key}">Editar</button>
+                        <button class="delete-btn bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600" data-key="${record.key}">Deletar</button>
                         </div>
                     `;
                     recordsList.appendChild(li);
